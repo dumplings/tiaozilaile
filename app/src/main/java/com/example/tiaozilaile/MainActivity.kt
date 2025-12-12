@@ -1,6 +1,8 @@
 package com.example.tiaozilaile
 
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,15 +15,20 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,20 +39,38 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import com.example.tiaozilaile.ui.theme.TiaozilaileTheme
-import kotlinx.coroutines.delay
 
+@androidx.compose.material3.ExperimentalMaterial3Api
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+
+        
+        // 初始化日志管理器
+        LogManager.initialize(this)
+        LogManager.logInfo("MainActivity", "应用启动")
+        
         setContent {
             TiaozilaileTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    topBar = {
+                        androidx.compose.material3.TopAppBar(
+                            title = { Text("条子来了") }
+                        )
+                    }
+                ) { innerPadding ->
                     MainScreen(
                         modifier = Modifier.padding(innerPadding)
                     )
@@ -61,9 +86,9 @@ fun MainScreen(modifier: Modifier = Modifier) {
     var isEditing by remember { mutableStateOf(false) }
     var isListening by remember { mutableStateOf(false) }
     val rippleAnimation = remember { Animatable(0f) }
+    val context = LocalContext.current
     
     // 从SharedPreferences加载保存的电话号码
-    val context = androidx.compose.ui.platform.LocalContext.current
     val sharedPreferences = remember {
         context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
     }
@@ -75,6 +100,22 @@ fun MainScreen(modifier: Modifier = Modifier) {
     
     if (phoneNumber.isEmpty() && savedPhoneNumber.isNotEmpty()) {
         phoneNumber = savedPhoneNumber
+    }
+    
+    // 设置短信监听回调
+    LaunchedEffect(isListening) {
+        if (isListening) {
+            // 设置短信接收回调
+            SmsListenerManager.setCallback(object : SmsListenerService.SmsListenerCallback {
+                override fun onSmsReceived(fromNumber: String, message: String) {
+                    // TODO: 处理接收到的短信
+                    // 这里可以添加通知、震动等提醒功能
+                    println("收到来自 $fromNumber 的短信: $message")
+                }
+            })
+        } else {
+            SmsListenerManager.removeCallback()
+        }
     }
     
     // 波纹动画效果
@@ -92,7 +133,33 @@ fun MainScreen(modifier: Modifier = Modifier) {
         }
     }
     
-    Box(
+    /**
+     * 启动短信监听服务
+     */
+    fun startSmsListening() {
+        if (phoneNumber.isNotEmpty()) {
+            isListening = true
+            SmsListenerManager.startListening(context, phoneNumber)
+        }
+    }
+    
+    /**
+     * 停止短信监听服务
+     */
+    fun stopSmsListening() {
+        isListening = false
+        SmsListenerManager.stopListening(context)
+    }
+    
+    /**
+     * 测试前台服务效果（已禁用）
+     */
+    fun testForegroundService() {
+        // 测试功能暂时禁用，避免应用崩溃
+        // TODO: 后续优化前台服务实现后再启用
+    }
+    
+        Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
@@ -123,7 +190,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
                     }
                     isEditing = !isEditing
                 },
-                modifier = Modifier.padding(bottom = 64.dp)
+                modifier = Modifier.padding(bottom = 32.dp)
             ) {
                 Text(if (isEditing) "保存" else "编辑")
             }
@@ -150,11 +217,10 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 // 大的圆形按钮
                 Button(
                     onClick = {
-                        isListening = !isListening
                         if (isListening) {
-                            // TODO: 启动监听功能
+                            stopSmsListening()
                         } else {
-                            // TODO: 停止监听功能
+                            startSmsListening()
                         }
                     },
                     enabled = phoneNumber.isNotEmpty() && !isEditing,
@@ -169,6 +235,9 @@ fun MainScreen(modifier: Modifier = Modifier) {
                     )
                 }
             }
+            
+            // 测试功能已禁用，避免应用崩溃
+            // TODO: 后续优化前台服务实现后再启用测试功能
         }
     }
 }
